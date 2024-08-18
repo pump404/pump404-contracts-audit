@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "./interfaces/ITradingHub.sol";
 import "./interfaces/IAssetPool.sol";
 import "./interfaces/IBondingCurve.sol";
+import "./interfaces/ILockedAssetPool.sol";
 import "./interfaces/IERC404.sol";
 
 contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable {
@@ -108,7 +109,8 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
         uint256 token_supply = asset_pool.INITIAL_TOKEN_SUPPLY() - IERC20(tokenAddress_).balanceOf(address(asset_pool)) + bonding_curve.INITIAL_TOKEN_BALANCE();
         uint256 connector_balance = address(asset_pool).balance;
-        uint256 deposite_amount = ethAmount_;
+        // deduct the trading fee
+        uint256 deposite_amount = ethAmount_ - ethAmount_ * tradingFeeRate / DENOMINATOR;
         uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
         return bonding_curve.calculatePurchaseReturn(token_supply, connector_balance, connector_weight, deposite_amount);
     }
@@ -132,7 +134,9 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
         uint256 sell_amount = tokenAmount_;
         uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
 
-        return bonding_curve.calculateSaleReturn(token_supply, connector_balance, connector_weight, sell_amount);
+        uint256 eth_amount_out = bonding_curve.calculateSaleReturn(token_supply, connector_balance, connector_weight, sell_amount);
+        // need to deduct the trading fee
+        return eth_amount_out - eth_amount_out * tradingFeeRate / DENOMINATOR;
     }
 
     /**
@@ -194,7 +198,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
         } else {
             uint256 transfer_token_amount = inputData_.amountIn;
             require(token.allowance(msg.sender, address(this)) >= transfer_token_amount, "TradingHub: insufficient token allowance");
-            require(token.balanceOf(msg.sender) >= transfer_token_amount, "TradingHub: insufficient token balance");
+            require(token.balanceOf(msg.sender) >= transfer_token_amount, "TradingHub: insufficient token balance to sell");
 
             uint256 eth_amount_out = calculateSaleReturn(token_address, transfer_token_amount);
             require(eth_amount_out >= inputData_.amountOutMinimum, "TradingHub: eth amount out is less than minimum amount out");
@@ -213,5 +217,23 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
             emit SoldToken(msg.sender, token_address, transfer_token_amount, eth_amount_out);
         }
+    }
+
+
+    /**
+    * @dev Import all ERC404s to Uniswap V3
+    */
+    function sendToUniswapV3(address tokenAddress_, uint160 sqrtPriceX96_, int24 tickLower, int24 tickUpper) external override onlyOwner {
+        IAssetPool assetPool = IAssetPool(tokenInAssetPool[tokenAddress_]);
+        require(address(assetPool).balance >= assetPool.MAX_RESERVE_BALANCE(), "TradingHub: asset pool is not reach the max reserve balance");
+
+        assetPool.sendAllAssetToLockedPool();
+
+        ILockedAssetPool lockedAssetPool = ILockedAssetPool(lockedAssetPoolAddress);
+
+        (uint256 tokenId, uint128 liquidity, address v3_pool, uint256 amount0, uint256 amount1, uint256 ignition_fee)
+        = lockedAssetPool.sendToUniswapV3(tokenAddress_, sqrtPriceX96_, tickLower, tickUpper);
+
+        emit SentToUniswapV3(tokenAddress_, v3_pool, tokenId, liquidity, amount0, amount1, ignition_fee);
     }
 }

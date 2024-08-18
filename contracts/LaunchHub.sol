@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ILaunchHub.sol";
 import "./interfaces/ITradingHub.sol";
-import "./interfaces/ILockedAssetPool.sol";
 import "./AssetPool.sol";
 import "./ERC404Token.sol";
 
@@ -12,9 +11,6 @@ contract LaunchHub is ILaunchHub, Ownable {
 
     // launch fee
     uint256 public immutable launchFee;
-
-    // ignition fee
-    uint256 public immutable ignitionFee;
 
     address public lockedPoolAddress;
     address public treasuryAddress;
@@ -25,12 +21,9 @@ contract LaunchHub is ILaunchHub, Ownable {
 
     mapping(address => uint256) private nonces;
 
-    constructor(uint256 launchFee_, uint256 ignitionFee_) Ownable(msg.sender) {
+    constructor(uint256 launchFee_) Ownable(msg.sender) {
         require(launchFee_ >= 0, "Launch: launch fee must be greater than or equal to 0");
         launchFee = launchFee_;
-
-        require(ignitionFee_ >= 0, "Launch: ignition fee must be greater than or equal to 0");
-        ignitionFee = ignitionFee_;
     }
 
     function setBondingCurve(address bondingCurveAddress_) external onlyOwner {
@@ -108,23 +101,5 @@ contract LaunchHub is ILaunchHub, Ownable {
             tradingHub.swap{value: initial_buy_amount_}(input_data);
         }
     }
-
-    /**
-    * @dev Import all ERC404s to Uniswap V3
-    * @notice price is around 0.000000044,
-    * @notice the reserve is around 4.8 ETH
-    */
-    function sendToUniswapV3(address tokenAddress_, uint160 sqrtPriceX96_, int24 tickLower, int24 tickUpper) external override onlyOwner {
-        IAssetPool assetPool = IAssetPool(tradingHub.tokenInAssetPool(tokenAddress_));
-        require(address(assetPool).balance >= assetPool.MAX_RESERVE_BALANCE(), "Launch: asset pool is not reach the max reserve balance");
-
-        assetPool.sendAllAssetToLockedPool();
-
-        (uint256 tokenId, uint128 liquidity, address v3_pool, uint256 amount0, uint256 amount1, uint256 ignition_fee)
-            = ILockedAssetPool(lockedPoolAddress).sendToUniswapV3(tokenAddress_, sqrtPriceX96_, tickLower, tickUpper);
-
-        emit SentToUniswapV3(tokenAddress_, v3_pool, tokenId, liquidity, amount0, amount1, ignition_fee);
-    }
-
 }
 

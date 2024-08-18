@@ -28,11 +28,6 @@ contract AssetPool is IAssetPool{
         _;
     }
 
-    modifier onlyLaunchHub() {
-        require(msg.sender == ITradingHub(tradingHubAddress).launchHubAddress(), "AssetPool: caller is not the launch contract");
-        _;
-    }
-
     constructor(address tokenAddress_, address tradingHubAddress_, address bondingCurveAddress_) {
         require(tokenAddress_ != address(0), "AssetPool: token address is the zero address");
         erc404TokenAddress = tokenAddress_;
@@ -85,19 +80,19 @@ contract AssetPool is IAssetPool{
     /**
     * @dev Send remaining asset to locked pool for igniting
     */
-    function sendAllAssetToLockedPool() external override onlyLaunchHub {
+    function sendAllAssetToLockedPool() external override onlyTradingHub {
         require(!ignited, "AssetPool: the pool has already been ignited");
-        require(IERC20(erc404TokenAddress).balanceOf(address(this)) <= 10**16, "AssetPool: token balance must be less than or equal to 0.01");
+//        require(IERC20(erc404TokenAddress).balanceOf(address(this)) <= 10**16, "AssetPool: token balance must be less than or equal to 0.01");
 
-        address locked_asset_pool = ITradingHub(tradingHubAddress).lockedAssetPoolAddress();
+        address locked_asset_pool_address = ITradingHub(tradingHubAddress).lockedAssetPoolAddress();
 
         IERC20 token = IERC20(erc404TokenAddress);
         uint256 token_balance = token.balanceOf(address(this));
         if (token_balance > 0) {
-            token.transferFrom(address(this), locked_asset_pool, token_balance);
+            token.transferFrom(address(this), locked_asset_pool_address, token_balance);
         }
 
-        (bool success, ) = locked_asset_pool.call{value: address(this).balance}("");
+        (bool success, ) = locked_asset_pool_address.call{value: address(this).balance}("");
         require(success, "AssetPool: failed to transfer eth to locked pool");
 
         ignited = true;
@@ -107,10 +102,6 @@ contract AssetPool is IAssetPool{
         require(IERC404(erc404TokenAddress).erc721TransferExempt(address(this)), "AssetPool: you must set the exempt before transferring");
 
         require(!ignited, "AssetPool: the pool has already been ignited");
-
-        if (address(this).balance >= MAX_RESERVE_BALANCE) {
-            revert("AssetPool: This token has reached ignition threshold. Waiting for igniting.");
-        }
 
         return true;
     }

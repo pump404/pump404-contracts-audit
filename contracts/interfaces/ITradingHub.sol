@@ -19,6 +19,7 @@ interface ITradingHub {
     event BoughtToken(address indexed buyer, address indexed token, uint256 amount, uint256 cost);
     event SoldToken(address indexed seller, address indexed token, uint256 amount, uint256 cost);
     event Swapped(address indexed sender, address indexed recipient, address tokenIn, address tokenOut, uint256 amountIn, uint256 amountOut);
+    event SentToUniswapV3(address indexed erc404_token, address uinswap_v3_pool, uint256 LP_tokenId, uint256 liquidity, uint256 amount0, uint256 amount1, uint256 ignition_fee);
 
     function VERSION() external view returns (uint8);
     function tradingFeeRate() external view returns (uint32);
@@ -36,4 +37,6 @@ interface ITradingHub {
     function calculateSaleReturn(address tokenAddress_, uint256 token_amount_) external view returns(uint256);
 
     function swap(InputData calldata input_data_) external payable;
+
+    function sendToUniswapV3(address tokenAddress_, uint160 sqrtPriceX96_, int24 tickLower, int24 tickUpper) external;
 }
