@@ -8,7 +8,7 @@ contract BondingCurve is IBondingCurve, Power {
 
     uint256 public constant INITIAL_TOKEN_BALANCE = 220_000 * 1e18;
     uint256 public constant INITIAL_RESERVE_BALANCE = 1e13;
-    uint32 public constant CURVE_WEIGHT = 570_000;
+    uint32 public constant CURVE_WEIGHT = 570_300; // 570_000;
 
     uint32 private constant MAX_WEIGHT = 1000000;
 

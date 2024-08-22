@@ -9,7 +9,7 @@ import "./interfaces/ITradingHub.sol";
 
 contract AssetPool is IAssetPool{
 
-    uint8 public constant VERSION = 1;
+    uint8 public constant VERSION = 2;
 
     bool public ignited = false;
 
@@ -99,9 +99,8 @@ contract AssetPool is IAssetPool{
     }
 
     function _checkStatus() internal view returns (bool) {
-        require(IERC404(erc404TokenAddress).erc721TransferExempt(address(this)), "AssetPool: you must set the exempt before transferring");
-
         require(!ignited, "AssetPool: the pool has already been ignited");
+        require(IERC404(erc404TokenAddress).erc721TransferExempt(address(this)), "AssetPool: you must set the exempt before transferring");
 
         return true;
     }

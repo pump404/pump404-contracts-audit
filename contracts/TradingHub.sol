@@ -109,8 +109,9 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
         uint256 token_supply = asset_pool.INITIAL_TOKEN_SUPPLY() - IERC20(tokenAddress_).balanceOf(address(asset_pool)) + bonding_curve.INITIAL_TOKEN_BALANCE();
         uint256 connector_balance = address(asset_pool).balance;
+
         // deduct the trading fee
-        uint256 deposite_amount = ethAmount_ - ethAmount_ * tradingFeeRate / DENOMINATOR;
+        uint256 deposite_amount = ethAmount_; //  - ethAmount_ * tradingFeeRate / DENOMINATOR;
         uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
         return bonding_curve.calculatePurchaseReturn(token_supply, connector_balance, connector_weight, deposite_amount);
     }
@@ -136,7 +137,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
         uint256 eth_amount_out = bonding_curve.calculateSaleReturn(token_supply, connector_balance, connector_weight, sell_amount);
         // need to deduct the trading fee
-        return eth_amount_out - eth_amount_out * tradingFeeRate / DENOMINATOR;
+        return eth_amount_out; // - eth_amount_out * tradingFeeRate / DENOMINATOR;
     }
 
     /**
@@ -176,15 +177,16 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
             require(msg.value == inputData_.amountIn, "TradingHub: eth value is not equal to amount in");
             require(msg.value >= MINIMUM_ETH_BUY, "TradingHub: eth amount is less than minimum eth to buy");
 
-            uint256 token_amount_out = calculatePurchaseReturn(token_address, inputData_.amountIn);
+            uint256 treasury_fee = (inputData_.amountIn * tradingFeeRate) / DENOMINATOR;
+            uint256 transfer_amount = inputData_.amountIn - treasury_fee;
+
+            uint256 token_amount_out = calculatePurchaseReturn(token_address, transfer_amount);
 
             uint256 token_balance_in_pool = token.balanceOf(address(asset_pool));
 
             require(token_balance_in_pool >= token_amount_out, "TradingHub: insufficient token balance in asset pool");
             require(token_amount_out >= inputData_.amountOutMinimum, "TradingHub: token amount out is less than minimum amount out");
 
-            uint256 treasury_fee = (inputData_.amountIn * tradingFeeRate) / DENOMINATOR;
-            uint256 transfer_amount = inputData_.amountIn - treasury_fee;
 
             (success, ) = address(asset_pool).call{value: transfer_amount}("");
             require(success, "TradingHub: failed to transfer eth to asset pool");
@@ -194,7 +196,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
             asset_pool.transferAsset(token_amount_out, inputData_.recipient);
 
-            emit BoughtToken(msg.sender, token_address, token_amount_out, inputData_.amountIn);
+            emit BoughtToken(inputData_.recipient, token_address, token_amount_out, inputData_.amountIn);
         } else {
             uint256 transfer_token_amount = inputData_.amountIn;
             require(token.allowance(msg.sender, address(this)) >= transfer_token_amount, "TradingHub: insufficient token allowance");
