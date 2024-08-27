@@ -217,7 +217,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
             token.transferFrom(msg.sender, address(asset_pool), transfer_token_amount);
 
-            emit SoldToken(msg.sender, token_address, transfer_token_amount, eth_amount_out);
+            emit SoldToken(msg.sender, token_address, transfer_token_amount, transfer_amount);
         }
     }
 
