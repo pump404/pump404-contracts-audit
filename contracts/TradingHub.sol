@@ -32,8 +32,15 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
     address public lockedAssetPoolAddress;
 
+    address public operator;
+
     modifier onlyLaunchHub() {
         require(msg.sender == launchHubAddress, "TradingHub: caller is not the launch contract");
+        _;
+    }
+
+    modifier onlyOperator() {
+        require(msg.sender == operator, "TradingHub: caller is not the operator");
         _;
     }
 
@@ -79,6 +86,11 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
     function setLockedAssetPoolAddress(address lockedAssetPoolAddress_) external onlyOwner {
         require(lockedAssetPoolAddress_ != address(0), "TradingHub: locked asset pool address is the zero address");
         lockedAssetPoolAddress = lockedAssetPoolAddress_;
+    }
+
+    function setOperator(address operator_) external onlyOwner {
+        require(operator_ != address(0), "TradingHub: operator address is the zero address");
+        operator = operator_;
     }
 
     /**
@@ -225,7 +237,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
     /**
     * @dev Import all ERC404s to Uniswap V3
     */
-    function sendToUniswapV3(address tokenAddress_, uint160 sqrtPriceX96_, int24 tickLower, int24 tickUpper) external override onlyOwner {
+    function sendToUniswapV3(address tokenAddress_, uint160 sqrtPriceX96_, int24 tickLower, int24 tickUpper) external override onlyOperator {
         IAssetPool assetPool = IAssetPool(tokenInAssetPool[tokenAddress_]);
         require(address(assetPool).balance >= assetPool.MAX_RESERVE_BALANCE(), "TradingHub: asset pool is not reach the max reserve balance");
 

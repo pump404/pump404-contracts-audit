@@ -20,8 +20,12 @@ contract Treasury is ITreasury, Initializable, UUPSUpgradeable, OwnableUpgradeab
 
     function withdraw(address recipient_, uint256 value_) external onlyOwner {
         require(recipient_ != address(0), "Treasury: recipient is the zero address");
+        require(value_ > 0, "Treasury: value must be greater than 0");
+        require(address(this).balance >= value_, "Treasury: insufficient eth balance");
 
-        payable(recipient_).transfer(value_);
+        (bool success, ) = recipient_.call{value: value_}("");
+        require(success, "Treasury: failed to transfer eth to recipient");
+
         emit Withdrew(recipient_, value_);
     }
 
