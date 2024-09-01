@@ -105,9 +105,16 @@ contract LockedAssetPool is ILockedAssetPool, Initializable, UUPSUpgradeable, Ow
 
         (tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager.mint{value: send_to_uniswap}(mintParams);
 
+        send_to_uniswap = weth.balanceOf(v3_pool);
+
         ignition_fee = eth_balance - send_to_uniswap;
         (bool success, ) = tradingHub.treasuryAddress().call{value: ignition_fee}("");
         require(success, "LockedAssetPool: failed to transfer ignition fee to treasury");
+
+        uint256 remaining_token = token.balanceOf(address(this));
+        if (remaining_token > 0) {
+            token.transferFrom(address(this), 0x000000000000000000000000000000000000dEaD, remaining_token);
+        }
     }
 
     receive() external payable {}

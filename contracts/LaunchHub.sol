@@ -10,7 +10,7 @@ import "./ERC404Token.sol";
 contract LaunchHub is ILaunchHub, Ownable {
 
     // launch fee
-    uint256 public immutable launchFee;
+    uint256 public launchFee;
 
     address public lockedPoolAddress;
     address public treasuryAddress;
@@ -21,41 +21,54 @@ contract LaunchHub is ILaunchHub, Ownable {
 
     mapping(address => uint256) private nonces;
 
-    constructor(uint256 launchFee_) Ownable(msg.sender) {
-        require(launchFee_ >= 0, "Launch: launch fee must be greater than or equal to 0");
-        launchFee = launchFee_;
-    }
+    constructor() Ownable(msg.sender) {}
 
     function setBondingCurve(address bondingCurveAddress_) external onlyOwner {
-        require(bondingCurveAddress_ != address(0), "Launch: bonding curve address is the zero address");
+        require(bondingCurveAddress_ != address(0), "LaunchHub: bonding curve address is the zero address");
         bondingCurve = IBondingCurve(bondingCurveAddress_);
+        emit SetBondingCurve(bondingCurveAddress_);
+    }
+
+    function setLaunchFee(uint256 launchFee_) external onlyOwner {
+        require(launchFee_ >= 0, "LaunchHub: launch fee must be greater than or equal to 0");
+        require(address(bondingCurve) != address(0), "LaunchHub: bonding curve must be set before setting the launch fee");
+        require(launchFee_ >= bondingCurve.INITIAL_RESERVE_BALANCE(), "LaunchHub: launch fee must be greater than or equal to the bonding curve base reserve");
+
+        launchFee = launchFee_;
+        emit SetLaunchFee(launchFee_);
     }
 
     function setLockedPoolAddress(address lockedPoolAddress_) external onlyOwner {
-        require(lockedPoolAddress_ != address(0), "Launch: locked pool address is the zero address");
+        require(lockedPoolAddress_ != address(0), "LaunchHub: locked pool address is the zero address");
         lockedPoolAddress = lockedPoolAddress_;
+        emit SetLockedPoolAddress(lockedPoolAddress_);
     }
 
     function setTreasuryAddress(address treasuryAddress_) external onlyOwner {
-        require(treasuryAddress_ != address(0), "Launch: treasury address is the zero address");
+        require(treasuryAddress_ != address(0), "LaunchHub: treasury address is the zero address");
         treasuryAddress = treasuryAddress_;
+        emit SetTreasuryAddress(treasuryAddress_);
     }
 
     function setERC404Operator(address erc404Operator_) external onlyOwner {
-        require(erc404Operator_ != address(0), "Launch: erc404 operator is the zero address");
+        require(erc404Operator_ != address(0), "LaunchHub: erc404 operator is the zero address");
         erc404Operator = erc404Operator_;
+        emit SetERC404Operator(erc404Operator_);
     }
 
     function setTradingHub(address tradingHubAddress_) external onlyOwner {
-        require(tradingHubAddress_ != address(0), "Launch: trading hub is the zero address");
+        require(tradingHubAddress_ != address(0), "LaunchHub: trading hub is the zero address");
         tradingHub = ITradingHub(tradingHubAddress_);
+        emit SetTradingHub(tradingHubAddress_);
     }
 
     function launchErc404(string memory name_, string memory symbol_, string memory defaultBaseURI_,  uint256 initial_buy_amount_) external payable override {
-        require(bytes(name_).length > 0, "Launch: name is empty");
-        require(bytes(symbol_).length > 0, "Launch: symbol is empty");
+        require(launchFee >= 0 && address(bondingCurve) != address(0) && lockedPoolAddress != address(0) && treasuryAddress != address(0) && erc404Operator != address(0) && address(tradingHub) != address(0), "LaunchHub: initialization not complete");
 
-        require(msg.value >= launchFee + initial_buy_amount_, "Launch: insufficient funds to launch");
+        require(bytes(name_).length > 0, "LaunchHub: name is empty");
+        require(bytes(symbol_).length > 0, "LaunchHub: symbol is empty");
+
+        require(msg.value >= launchFee + initial_buy_amount_, "LaunchHub: insufficient funds to launch");
 
         uint256 ratio = 100_000;
         bytes32 _salt = keccak256(abi.encodePacked(name_, symbol_, ratio, nonces[msg.sender]));
@@ -69,16 +82,16 @@ contract LaunchHub is ILaunchHub, Ownable {
         uint256 base_reserve = bondingCurve.INITIAL_RESERVE_BALANCE();
 
         bool success;
-        require(msg.value >= base_reserve, "Launch: insufficient funds to transfer bonding curve base reserve");
+        require(msg.value >= base_reserve, "LaunchHub: insufficient funds to transfer bonding curve base reserve");
         (success, ) = payable(address(assetPool)).call{value: base_reserve}("");
         if (!success) {
-            revert("Launch: failed to transfer bonding curve reserve");
+            revert("LaunchHub: failed to transfer bonding curve reserve");
         }
 
-        require(msg.value >= launchFee - base_reserve, "Launch: insufficient funds to transfer fee");
+        require(msg.value >= launchFee - base_reserve, "LaunchHub: insufficient funds to transfer fee");
         (success, ) = payable(treasuryAddress).call{value: launchFee - base_reserve}("");
         if (!success) {
-            revert("Launch: failed to transfer launch fee");
+            revert("LaunchHub: failed to transfer launch fee");
         }
         tradingHub.setTokenInAssetPool(address(erc404Token), address(assetPool));
 
@@ -87,7 +100,7 @@ contract LaunchHub is ILaunchHub, Ownable {
         emit LaunchedERC404(address(assetPool), address(bondingCurve), address(erc404Token), msg.sender, initial_buy_amount_, erc404Operator);
 
         if (initial_buy_amount_ > 0) {
-            require(msg.value == launchFee + initial_buy_amount_, "Launch: insufficient funds to buy initial amount");
+            require(msg.value == launchFee + initial_buy_amount_, "LaunchHub: insufficient funds to buy initial amount");
             if (erc404Token.erc721TransferExempt(msg.sender)) {
                 erc404Token.setERC721TransferExempt(msg.sender, false);
             }

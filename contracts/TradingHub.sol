@@ -177,7 +177,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
         IERC404 erc404 = IERC404(token_address);
 
-        if (!erc404.erc721TransferExempt(inputData_.recipient)) {
+        if (!erc404.erc721TransferExempt(inputData_.recipient) && erc404.erc721BalanceOf(inputData_.recipient) == 0) {
             erc404.setERC721TransferExempt(inputData_.recipient, true);
         }
 
@@ -197,7 +197,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
             uint256 token_balance_in_pool = token.balanceOf(address(asset_pool));
 
             require(token_balance_in_pool >= token_amount_out, "TradingHub: insufficient token balance in asset pool");
-            require(token_amount_out >= inputData_.amountOutMinimum, "TradingHub: token amount out is less than minimum amount out");
+            require(token_amount_out >= inputData_.amountOutMinimum, "TradingHub: the slippery may be too low");
 
 
             (success, ) = address(asset_pool).call{value: transfer_amount}("");
@@ -215,7 +215,7 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
             require(token.balanceOf(msg.sender) >= transfer_token_amount, "TradingHub: insufficient token balance to sell");
 
             uint256 eth_amount_out = calculateSaleReturn(token_address, transfer_token_amount);
-            require(eth_amount_out >= inputData_.amountOutMinimum, "TradingHub: eth amount out is less than minimum amount out");
+            require(eth_amount_out >= inputData_.amountOutMinimum, "TradingHub: the slippery may be too low");
             require(eth_amount_out >= MINIMUM_ETH_BUY, "TradingHub: eth amount out is less than minimum eth buy");
 
             uint256 eth_balance_in_pool = address(asset_pool).balance;
