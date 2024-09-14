@@ -39,4 +39,6 @@ interface ITradingHub {
     function swap(InputData calldata input_data_) external payable;
 
     function sendToUniswapV3(address tokenAddress_, uint160 sqrtPriceX96_, int24 tickLower, int24 tickUpper) external;
+
+    function setUserToErc404Exempt(address erc404_address_, address user_address_, bool is_exempt_) external;
 }

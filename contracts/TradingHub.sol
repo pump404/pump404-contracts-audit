@@ -34,6 +34,8 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
     address public operator;
 
+    address public uniswap_v3_address;
+
     modifier onlyLaunchHub() {
         require(msg.sender == launchHubAddress, "TradingHub: caller is not the launch contract");
         _;
@@ -41,6 +43,11 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
 
     modifier onlyOperator() {
         require(msg.sender == operator, "TradingHub: caller is not the operator");
+        _;
+    }
+
+    modifier onlyUniswapV3() {
+        require(msg.sender == uniswap_v3_address, "TradingHub: caller is not the uniswap v3 contract");
         _;
     }
 
@@ -93,6 +100,11 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
         operator = operator_;
     }
 
+    function setUniswapV3Address(address uniswap_v3_address_) external onlyOwner {
+        require(uniswap_v3_address_ != address(0), "TradingHub: uniswap v3 address is the zero address");
+        uniswap_v3_address = uniswap_v3_address_;
+    }
+
     /**
     * @dev Set the relationship between asset pool and token address
     * @param token_ address of the token
@@ -116,16 +128,22 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
         require(tokenInAssetPool[tokenAddress_] != address(0), "TradingHub: asset pool address is the zero address");
 
         IAssetPool asset_pool = IAssetPool(tokenInAssetPool[tokenAddress_]);
-
         IBondingCurve bonding_curve = asset_pool.bondingCurve();
 
-        uint256 token_supply = asset_pool.INITIAL_TOKEN_SUPPLY() - IERC20(tokenAddress_).balanceOf(address(asset_pool)) + bonding_curve.INITIAL_TOKEN_BALANCE();
-        uint256 connector_balance = address(asset_pool).balance;
+        if (asset_pool.VERSION() == 2) {
+            uint256 token_supply = asset_pool.INITIAL_TOKEN_SUPPLY() - IERC20(tokenAddress_).balanceOf(address(asset_pool)) + bonding_curve.INITIAL_TOKEN_BALANCE();
+            uint256 connector_balance = address(asset_pool).balance;
 
-        // deduct the trading fee
-        uint256 deposite_amount = ethAmount_; //  - ethAmount_ * tradingFeeRate / DENOMINATOR;
-        uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
-        return bonding_curve.calculatePurchaseReturn(token_supply, connector_balance, connector_weight, deposite_amount);
+            // deduct the trading fee
+            uint256 deposite_amount = ethAmount_; //  - ethAmount_ * tradingFeeRate / DENOMINATOR;
+            uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
+            return bonding_curve.calculatePurchaseReturn(token_supply, connector_balance, connector_weight, deposite_amount);
+        }
+
+        uint256 eth_reserve = address(asset_pool).balance;
+        uint256 token_reserve = IERC20(tokenAddress_).balanceOf(address(asset_pool)) + IERC20(tokenAddress_).balanceOf(address(lockedAssetPoolAddress));
+
+        return bonding_curve.calculatePurchaseReturn(eth_reserve, token_reserve, ethAmount_);
     }
 
     /**
@@ -139,17 +157,23 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
         require(tokenInAssetPool[tokenAddress_] != address(0), "TradingHub: asset pool address is the zero address");
 
         IAssetPool asset_pool = IAssetPool(tokenInAssetPool[tokenAddress_]);
-
         IBondingCurve bonding_curve = asset_pool.bondingCurve();
 
-        uint256 token_supply = asset_pool.INITIAL_TOKEN_SUPPLY() - IERC20(tokenAddress_).balanceOf(address(asset_pool)) + bonding_curve.INITIAL_TOKEN_BALANCE();
-        uint256 connector_balance = address(asset_pool).balance;
-        uint256 sell_amount = tokenAmount_;
-        uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
+        if (asset_pool.VERSION() == 2) {
+            uint256 token_supply = asset_pool.INITIAL_TOKEN_SUPPLY() - IERC20(tokenAddress_).balanceOf(address(asset_pool)) + bonding_curve.INITIAL_TOKEN_BALANCE();
+            uint256 connector_balance = address(asset_pool).balance;
+            uint256 sell_amount = tokenAmount_;
+            uint32 connector_weight = bonding_curve.CURVE_WEIGHT();
 
-        uint256 eth_amount_out = bonding_curve.calculateSaleReturn(token_supply, connector_balance, connector_weight, sell_amount);
-        // need to deduct the trading fee
-        return eth_amount_out; // - eth_amount_out * tradingFeeRate / DENOMINATOR;
+            uint256 eth_amount_out = bonding_curve.calculateSaleReturn(token_supply, connector_balance, connector_weight, sell_amount);
+            // need to deduct the trading fee
+            return eth_amount_out;
+        }
+
+        uint256 eth_reserve = address(asset_pool).balance;
+        uint256 token_reserve = IERC20(tokenAddress_).balanceOf(address(asset_pool)) + IERC20(tokenAddress_).balanceOf(address(lockedAssetPoolAddress));
+
+        return bonding_curve.calculateSaleReturn(eth_reserve, token_reserve, tokenAmount_);
     }
 
     /**
@@ -249,5 +273,10 @@ contract TradingHub is ITradingHub, Initializable, UUPSUpgradeable, OwnableUpgra
         = lockedAssetPool.sendToUniswapV3(tokenAddress_, sqrtPriceX96_, tickLower, tickUpper);
 
         emit SentToUniswapV3(tokenAddress_, v3_pool, tokenId, liquidity, amount0, amount1, ignition_fee);
+    }
+
+    function setUserToErc404Exempt(address erc404_address_, address user_address_, bool is_exempt_) external override onlyUniswapV3 {
+        IERC404 erc404 = IERC404(erc404_address_);
+        erc404.setERC721TransferExempt(user_address_, is_exempt_);
     }
 }

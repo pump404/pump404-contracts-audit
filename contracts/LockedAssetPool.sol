@@ -9,9 +9,9 @@ import "./interfaces/IUniswapV3NonfungiblePositionManager.sol";
 import "./interfaces/ITradingHub.sol";
 import "./interfaces/IAssetPool.sol";
 import "./interfaces/IWETH9.sol";
+import "./interfaces/IERC404.sol";
 
 contract LockedAssetPool is ILockedAssetPool, Initializable, UUPSUpgradeable, OwnableUpgradeable {
-
     address public launchHubAddress;
 
     IUniswapV3NonfungiblePositionManager public nonfungiblePositionManager;
@@ -68,7 +68,7 @@ contract LockedAssetPool is ILockedAssetPool, Initializable, UUPSUpgradeable, Ow
 
         uint256 send_to_uniswap = asset_pool.MAX_RESERVE_BALANCE() - ignitionFee;
 
-        IERC20 token = IERC20(tokenAddress_);
+        IERC404 token = IERC404(tokenAddress_);
         IWETH9 weth = IWETH9(nonfungiblePositionManager.WETH9());
 
         uint256 token_balance = token.balanceOf(address(this));
@@ -105,19 +105,14 @@ contract LockedAssetPool is ILockedAssetPool, Initializable, UUPSUpgradeable, Ow
 
         (tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager.mint{value: send_to_uniswap}(mintParams);
 
-        if (token0 == address(weth)) {
-            send_to_uniswap = amount0;
-        } else {
-            send_to_uniswap = amount1;
-        }
+        ignition_fee = address(this).balance;
 
-        ignition_fee = eth_balance - send_to_uniswap;
         (bool success, ) = tradingHub.treasuryAddress().call{value: ignition_fee}("");
         require(success, "LockedAssetPool: failed to transfer ignition fee to treasury");
 
         uint256 remaining_token = token.balanceOf(address(this));
         if (remaining_token > 0) {
-            token.transferFrom(address(this), 0x000000000000000000000000000000000000dEaD, remaining_token);
+            token.erc20TransferFrom(address(this), 0x000000000000000000000000000000000000dEaD, remaining_token);
         }
     }
 

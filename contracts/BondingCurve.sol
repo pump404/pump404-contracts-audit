@@ -1,19 +1,27 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.0;
 
 import {Power} from "./dependencies/Power.sol";
 import {IBondingCurve} from "./interfaces/IBondingCurve.sol";
 
 contract BondingCurve is IBondingCurve, Power {
 
-    uint256 public constant INITIAL_TOKEN_BALANCE = 220_000 * 1e18;
-    uint256 public constant INITIAL_RESERVE_BALANCE = 1e13;
-    uint32 public constant CURVE_WEIGHT = 570_300; // 570_000;
+    // v1
+    uint256 public immutable INITIAL_TOKEN_BALANCE = 220_000 * 1e18;
+    uint256 public immutable INITIAL_RESERVE_BALANCE = 1e13;
+    uint32 public immutable CURVE_WEIGHT = 570_300; // 570_000;
+    uint32 private immutable MAX_WEIGHT = 1000000;
 
-    uint32 private constant MAX_WEIGHT = 1000000;
+    // v2
+    uint256 public immutable VIRTUAL_ETH_RESERVE = 1.8 ether; // virtual ETH reserve, x0
+    uint256 public immutable VIRTUAL_TOKEN_SUPPLY = 1_073_000_190.09 ether; // virtual total supply of token, y0
+    uint256 public immutable K = VIRTUAL_ETH_RESERVE * VIRTUAL_TOKEN_SUPPLY; // 1931400343.8 ether;
+    uint256 public immutable INITIAL_TOKEN_SUPPLY = 1_000_000_000 ether; // total supply of token
+    uint256 public immutable VIRTUAL_TOKEN_LOCKED = VIRTUAL_TOKEN_SUPPLY - INITIAL_TOKEN_SUPPLY; // virtual token locked
+    uint256 public immutable PRICE_PRECISION = 1e18;
+    uint8 public override VERSION = 2;
 
-
-    /**
+     /** v1
      * @dev given a token supply, connector balance, weight and a deposit amount (in the connector token),
      * calculates the return for a given conversion (in the main token)
      *
@@ -51,7 +59,7 @@ contract BondingCurve is IBondingCurve, Power {
         return newTokenSupply - _supply;
     }
 
-    /**
+    /** v1
      * @dev given a token supply, connector balance, weight and a sell amount (in the main token),
      * calculates the return for a given conversion (in the connector token)
      *
@@ -97,4 +105,45 @@ contract BondingCurve is IBondingCurve, Power {
         uint256 newBalance = _connectorBalance << precision;
         return (oldBalance - newBalance) / result;
     }
+    
+    /** v2
+     * @dev Calculate the amount of tokens that can be purchased with a specified amount of ETH
+     * @param ethReserve_  ETH balance in the asset pool
+     * @param tokenReserve_  Token balance in the asset pool + token balance in the locked asset pool
+     * @param ethToBuy_  Amount of ETH to spend
+     * 
+     */
+    function calculatePurchaseReturn(uint256 ethReserve_, uint256 tokenReserve_, uint256 ethToBuy_) external view returns (uint256) {
+        if (ethToBuy_ == 0) {
+            return 0;
+        }
+        tokenReserve_ += VIRTUAL_TOKEN_LOCKED;
+        ethReserve_ += VIRTUAL_ETH_RESERVE;
+        uint256 tokensToBuy = tokenReserve_ - K / (ethReserve_ + ethToBuy_);
+        return tokensToBuy;
+    }
+
+    /** v2
+     * @dev Calculate the amount of ETH that can be obtained by selling a specified amount of tokens
+     * @param ethReserve_  ETH balance in the asset pool
+     * @param tokenReserve_  Token balance in the asset pool + token balance in the locked asset pool
+     * @param tokenToSell_  Amount of tokens to sell
+     * 
+     */
+    function calculateSaleReturn(uint256 ethReserve_, uint256 tokenReserve_, uint256 tokenToSell_) external view returns (uint256) {
+        if (tokenToSell_ == 0) {
+            return 0;
+        }
+        tokenReserve_ += VIRTUAL_TOKEN_LOCKED;
+        ethReserve_ += VIRTUAL_ETH_RESERVE;
+        uint256 ethToReturn = ethReserve_ - (K / (tokenReserve_ + tokenToSell_));
+        return ethToReturn;
+    }
+
+    // v2
+    function getTokenPrice(uint256 ethReserve_) external view returns (uint256) {
+        ethReserve_ += VIRTUAL_ETH_RESERVE;
+        return (ethReserve_ ** 2 * PRICE_PRECISION) / K;
+    }
+
 }

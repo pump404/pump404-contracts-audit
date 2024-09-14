@@ -6,7 +6,7 @@ import {ERC404U16} from "./dependencies/ERC404U16.sol";
 
 contract ERC404Token is ERC404U16 {
 
-    uint24 public constant TOTAL_ERC721_SUPPLY = 5130;
+    uint24 public constant TOTAL_ERC721_SUPPLY = 10000; 
 
     // this number will send to locked pool
     uint256 public immutable SEND_TO_LOCKED_POOL;
@@ -51,7 +51,7 @@ contract ERC404Token is ERC404U16 {
         require(tradingHubAddress_ != address(0), "ERC404Token: trading hub is the zero address");
         tradingHubAddress = tradingHubAddress_;
 
-        SEND_TO_LOCKED_POOL = 1770 * units;
+        SEND_TO_LOCKED_POOL = 210000000 ether; 
     }
 
     /**

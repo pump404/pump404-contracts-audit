@@ -32,7 +32,7 @@ contract LaunchHub is ILaunchHub, Ownable {
     function setLaunchFee(uint256 launchFee_) external onlyOwner {
         require(launchFee_ >= 0, "LaunchHub: launch fee must be greater than or equal to 0");
         require(address(bondingCurve) != address(0), "LaunchHub: bonding curve must be set before setting the launch fee");
-        require(launchFee_ >= bondingCurve.INITIAL_RESERVE_BALANCE(), "LaunchHub: launch fee must be greater than or equal to the bonding curve base reserve");
+        // require(launchFee_ >= bondingCurve.INITIAL_RESERVE_BALANCE(), "LaunchHub: launch fee must be greater than or equal to the bonding curve base reserve");
 
         launchFee = launchFee_;
         emit SetLaunchFee(launchFee_);
@@ -79,17 +79,18 @@ contract LaunchHub is ILaunchHub, Ownable {
 
         erc404Token.mintForPools(address(assetPool), lockedPoolAddress);
 
-        uint256 base_reserve = bondingCurve.INITIAL_RESERVE_BALANCE();
+        // uint256 base_reserve = bondingCurve.INITIAL_RESERVE_BALANCE();
 
         bool success;
-        require(msg.value >= base_reserve, "LaunchHub: insufficient funds to transfer bonding curve base reserve");
-        (success, ) = payable(address(assetPool)).call{value: base_reserve}("");
-        if (!success) {
-            revert("LaunchHub: failed to transfer bonding curve reserve");
-        }
+        // require(msg.value >= base_reserve, "LaunchHub: insufficient funds to transfer bonding curve base reserve");
+        // (success, ) = payable(address(assetPool)).call{value: base_reserve}("");
+        // if (!success) {
+        //     revert("LaunchHub: failed to transfer bonding curve reserve");
+        // }
 
-        require(msg.value >= launchFee - base_reserve, "LaunchHub: insufficient funds to transfer fee");
-        (success, ) = payable(treasuryAddress).call{value: launchFee - base_reserve}("");
+        // require(msg.value >= launchFee - base_reserve, "LaunchHub: insufficient funds to transfer fee");
+        // (success, ) = payable(treasuryAddress).call{value: launchFee - base_reserve}("");
+        (success, ) = payable(treasuryAddress).call{value: launchFee }("");
         if (!success) {
             revert("LaunchHub: failed to transfer launch fee");
         }

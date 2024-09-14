@@ -9,13 +9,13 @@ import "./interfaces/ITradingHub.sol";
 
 contract AssetPool is IAssetPool{
 
-    uint8 public constant VERSION = 2;
+    uint8 public immutable VERSION = 3; // TODO constant
 
     bool public ignited = false;
 
-    uint256 public constant INITIAL_TOKEN_SUPPLY = 336_000_000 * 10**18;
+    uint256 public immutable INITIAL_TOKEN_SUPPLY = 790000000 ether; // TODO constant
 
-    uint256 public constant MAX_RESERVE_BALANCE = 38 * 10**17;
+    uint256 public immutable MAX_RESERVE_BALANCE = 4.8 ether; // TODO constant
 
     address public erc404TokenAddress;
 
